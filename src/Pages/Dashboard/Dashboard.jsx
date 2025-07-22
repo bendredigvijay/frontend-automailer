@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Toast, ToastContainer, Modal, Button } from 'react-bootstrap';
+import { Form, Modal, Button } from 'react-bootstrap';
 import {
   IoSend,
   IoPersonAdd,
@@ -11,6 +11,8 @@ import {
 } from 'react-icons/io5';
 import { MdEmail, MdDelete } from 'react-icons/md';
 import { contactService, emailService } from '../../apiService';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import './Dashboard.css';
 
 function Dashboard() {
@@ -24,8 +26,6 @@ function Dashboard() {
 
   const [hrContacts, setHrContacts] = useState([]);
   const [skillSearchTerm, setSkillSearchTerm] = useState('');
-  const [showToast, setShowToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isBulkSending, setIsBulkSending] = useState(false);
   const [resume, setResume] = useState(null);
@@ -86,6 +86,7 @@ function Dashboard() {
       }
     } catch (error) {
       console.error('Error loading contacts:', error);
+      toast.error('Failed to load contacts from database');
     }
   };
 
@@ -176,16 +177,21 @@ function Dashboard() {
     try {
       const response = await contactService.updateContact(editingId, editFormData);
       if (response.success) {
-        await loadContactsFromDatabase();
+        // Update local state instead of reloading
+        setHrContacts(prev =>
+          prev.map(contact =>
+            contact.id === editingId ? response.data : contact
+          )
+        );
+
         cancelEditing();
-        setToastMessage('Contact updated successfully! ✅');
-        setShowToast(true);
+        toast.success(`✅ Contact updated successfully!`);
       } else {
-        alert('Failed to update contact: ' + response.error);
+        toast.error(`Failed to update contact: ${response.error}`);
       }
     } catch (error) {
       console.error('Error updating contact:', error);
-      alert('Failed to update contact. Please try again.');
+      toast.error('Failed to update contact. Please try again.');
     }
   };
 
@@ -200,28 +206,30 @@ function Dashboard() {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     ];
     if (!allowed.includes(file.type)) {
-      alert('Please upload PDF, DOC or DOCX only');
+      toast.error('Please upload PDF, DOC or DOCX only');
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      alert('File must be under 5 MB');
+      toast.error('File must be under 5 MB');
       return;
     }
     setResume(file);
     setResumePreview(file.name);
+    toast.success(`📎 Resume uploaded: ${file.name}`);
   };
 
   const removeResume = () => {
     setResume(null);
     setResumePreview('');
     document.getElementById('resume-upload').value = '';
+    toast.info('📎 Resume removed');
   };
 
   /* ------------  FORM SUBMIT - SAVE TO DATABASE  ------------ */
   const handleSubmit = async e => {
     e.preventDefault();
     if (!formData.requiredSkills.length) {
-      alert('Please add at least one skill');
+      toast.error('Please add at least one skill');
       return;
     }
 
@@ -232,7 +240,9 @@ function Dashboard() {
 
       if (response.success) {
         console.log('✅ CONTACT SAVED:', response.data);
-        await loadContactsFromDatabase();
+
+        // Add to local state instead of reloading
+        setHrContacts(prev => [response.data, ...prev]);
 
         // Clear form
         setFormData({
@@ -244,14 +254,13 @@ function Dashboard() {
         });
         setSkillSearchTerm('');
 
-        setToastMessage('Contact saved to database! 🎉');
-        setShowToast(true);
+        toast.success('🎉 Contact saved to database!');
       } else {
-        alert('Failed to save contact: ' + response.error);
+        toast.error(`Failed to save contact: ${response.error}`);
       }
     } catch (error) {
       console.error('Error saving contact:', error);
-      alert('Failed to save contact. Please try again.');
+      toast.error('Failed to save contact. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -268,15 +277,19 @@ function Dashboard() {
       const response = await contactService.deleteContact(contactToDelete.id);
       if (response.success) {
         console.log('🗑️ CONTACT DELETED:', contactToDelete.id);
-        await loadContactsFromDatabase();
-        setToastMessage(`Contact "${contactToDelete.hr_name}" deleted! 🗑️`);
-        setShowToast(true);
+
+        // Remove from local state instead of reloading
+        setHrContacts(prev =>
+          prev.filter(contact => contact.id !== contactToDelete.id)
+        );
+
+        toast.success(`🗑️ Contact "${contactToDelete.hr_name}" deleted!`);
       } else {
-        alert('Failed to delete contact');
+        toast.error('Failed to delete contact');
       }
     } catch (error) {
       console.error('Error deleting contact:', error);
-      alert('Failed to delete contact');
+      toast.error('Failed to delete contact');
     } finally {
       setShowDeleteModal(false);
       setContactToDelete(null);
@@ -286,7 +299,7 @@ function Dashboard() {
   /* ------------  INDIVIDUAL SEND EMAIL  ------------ */
   const sendToIndividual = async (contact) => {
     if (!resume) {
-      alert('Please upload resume first! 📎');
+      toast.error('Please upload resume first! 📎');
       return;
     }
 
@@ -308,14 +321,16 @@ function Dashboard() {
 
       if (response.success) {
         setSentCount(prev => prev + 1);
-        setToastMessage(`✅ Resume sent to ${contact.hr_name} at ${contact.company_name}!`);
-        setShowToast(true);
+        toast.success(`✅ Resume sent to ${contact.hr_name} at ${contact.company_name}!`, {
+          position: "top-right",
+          autoClose: 5000,
+        });
       } else {
-        alert(`❌ Failed to send email: ${response.message}`);
+        toast.error(`❌ Failed to send email: ${response.message}`);
       }
     } catch (error) {
       console.error('❌ Individual send failed:', error);
-      alert('❌ Failed to send email. Please try again.');
+      toast.error('❌ Failed to send email. Please try again.');
     } finally {
       setSendingContactId(null);
     }
@@ -324,12 +339,12 @@ function Dashboard() {
   /* ------------  BULK SEND - SAME RESUME TO ALL HRs  ------------ */
   const handleBulkSend = async () => {
     if (!resume) {
-      alert('Please upload resume first! 📎');
+      toast.error('Please upload resume first! 📎');
       return;
     }
 
     if (hrContacts.length === 0) {
-      alert('Add at least one HR contact first! 👥');
+      toast.error('Add at least one HR contact first! 👥');
       return;
     }
 
@@ -358,17 +373,23 @@ function Dashboard() {
         const successCount = response.data?.successCount || allContactsData.length;
         setSentCount(prev => prev + successCount);
 
-        setToastMessage(
-          `✅ Resume sent successfully to ${successCount} HRs! 
-           File: ${resume.name} (${(resume.size / 1024 / 1024).toFixed(2)}MB)`
+        toast.success(
+          `🎉 Resume sent successfully to ${successCount} HRs! 
+           File: ${resume.name} (${(resume.size / 1024 / 1024).toFixed(2)}MB)`,
+          {
+            position: "top-right",
+            autoClose: 6000,
+            style: {
+              fontSize: '14px'
+            }
+          }
         );
-        setShowToast(true);
       } else {
-        alert(`❌ Failed to send emails: ${response.message}`);
+        toast.error(`❌ Failed to send emails: ${response.message}`);
       }
     } catch (error) {
       console.error('❌ Bulk send failed:', error);
-      alert('❌ Failed to send emails. Please try again.');
+      toast.error('❌ Failed to send emails. Please try again.');
     } finally {
       setIsBulkSending(false);
     }
@@ -880,21 +901,22 @@ function Dashboard() {
         </Modal.Footer>
       </Modal>
 
-      {/* ----------  TOAST  ---------- */}
-      <ToastContainer position="top-end" className="toast-wrapper">
-        <Toast
-          show={showToast}
-          onClose={() => setShowToast(false)}
-          delay={4000}
-          autohide
-        >
-          <Toast.Header className="success-toast">
-            <i className="bi bi-check-circle-fill" />
-            <strong>Success!</strong>
-          </Toast.Header>
-          <Toast.Body>{toastMessage}</Toast.Body>
-        </Toast>
-      </ToastContainer>
+      {/* ----------  REACT-TOASTIFY CONTAINER  ---------- */}
+      <ToastContainer
+        position="top-right"
+        autoClose={4000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="dark"
+        style={{
+          fontSize: '14px'
+        }}
+      />
     </div>
   );
 }
