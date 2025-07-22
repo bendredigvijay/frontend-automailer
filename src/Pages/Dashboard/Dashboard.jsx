@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Toast, ToastContainer } from 'react-bootstrap';
+import { Form, Toast, ToastContainer, Modal, Button } from 'react-bootstrap';
 import {
   IoSend,
   IoPersonAdd,
   IoDocumentAttach,
-  IoCloudUpload
+  IoCloudUpload,
+  IoPencil,
+  IoSave,
+  IoClose
 } from 'react-icons/io5';
 import { MdEmail, MdDelete } from 'react-icons/md';
 import { contactService, emailService } from '../../apiService';
@@ -30,6 +33,19 @@ function Dashboard() {
   const [isSkillsOpen, setIsSkillsOpen] = useState(false);
   const [sentCount, setSentCount] = useState(0);
 
+  // Edit functionality states
+  const [editingId, setEditingId] = useState(null);
+  const [editFormData, setEditFormData] = useState({});
+  const [editSkillSearchTerm, setEditSkillSearchTerm] = useState('');
+  const [isEditSkillsOpen, setIsEditSkillsOpen] = useState(false);
+
+  // Individual send states
+  const [sendingContactId, setSendingContactId] = useState(null);
+
+  // Delete confirmation modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [contactToDelete, setContactToDelete] = useState(null);
+
   /* ------------  PRE-DEFINED SKILLS  ------------ */
   const predefinedSkills = [
     'JavaScript', 'React', 'Node.js', 'MongoDB', 'Express.js',
@@ -47,6 +63,12 @@ function Dashboard() {
     s =>
       s.toLowerCase().includes(skillSearchTerm.toLowerCase()) &&
       !formData.requiredSkills.includes(s)
+  );
+
+  const filteredEditSkills = predefinedSkills.filter(
+    s =>
+      s.toLowerCase().includes(editSkillSearchTerm.toLowerCase()) &&
+      !editFormData.requiredSkills?.includes(s)
   );
 
   /* ------------  LOAD CONTACTS ON COMPONENT MOUNT  ------------ */
@@ -98,6 +120,75 @@ function Dashboard() {
     }
   };
 
+  /* ------------  EDIT FUNCTIONALITY  ------------ */
+  const startEditing = (contact) => {
+    setEditingId(contact.id);
+    setEditFormData({
+      hrName: contact.hr_name,
+      email: contact.email,
+      companyName: contact.company_name,
+      jobPosition: contact.job_position,
+      requiredSkills: [...contact.required_skills] || []
+    });
+  };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+    setEditFormData({});
+    setEditSkillSearchTerm('');
+    setIsEditSkillsOpen(false);
+  };
+
+  const handleEditInputChange = (e) => {
+    const { name, value } = e.target;
+    setEditFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const addEditSkill = (skill) => {
+    if (!editFormData.requiredSkills.includes(skill)) {
+      setEditFormData(prev => ({
+        ...prev,
+        requiredSkills: [...prev.requiredSkills, skill]
+      }));
+    }
+    setEditSkillSearchTerm('');
+  };
+
+  const removeEditSkill = (skillToRemove) => {
+    setEditFormData(prev => ({
+      ...prev,
+      requiredSkills: prev.requiredSkills.filter(s => s !== skillToRemove)
+    }));
+  };
+
+  const handleEditSkillsKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (editSkillSearchTerm.trim()) addEditSkill(editSkillSearchTerm.trim());
+    }
+    if (e.key === 'Backspace' && !editSkillSearchTerm) {
+      const prev = editFormData.requiredSkills;
+      if (prev.length) removeEditSkill(prev[prev.length - 1]);
+    }
+  };
+
+  const saveEdit = async () => {
+    try {
+      const response = await contactService.updateContact(editingId, editFormData);
+      if (response.success) {
+        await loadContactsFromDatabase();
+        cancelEditing();
+        setToastMessage('Contact updated successfully! ✅');
+        setShowToast(true);
+      } else {
+        alert('Failed to update contact: ' + response.error);
+      }
+    } catch (error) {
+      console.error('Error updating contact:', error);
+      alert('Failed to update contact. Please try again.');
+    }
+  };
+
   /* ------------  RESUME UPLOAD  ------------ */
   const handleResumeUpload = e => {
     const file = e.target.files[0];
@@ -137,13 +228,10 @@ function Dashboard() {
     setIsLoading(true);
 
     try {
-      // Send data to backend
       const response = await contactService.addContact(formData);
 
       if (response.success) {
         console.log('✅ CONTACT SAVED:', response.data);
-
-        // Reload contacts from database
         await loadContactsFromDatabase();
 
         // Clear form
@@ -156,13 +244,11 @@ function Dashboard() {
         });
         setSkillSearchTerm('');
 
-        // Show success message
         setToastMessage('Contact saved to database! 🎉');
         setShowToast(true);
       } else {
         alert('Failed to save contact: ' + response.error);
       }
-
     } catch (error) {
       console.error('Error saving contact:', error);
       alert('Failed to save contact. Please try again.');
@@ -172,19 +258,66 @@ function Dashboard() {
   };
 
   /* ------------  DELETE CONTACT FROM DATABASE  ------------ */
-  const deleteContact = async (contactId) => {
+  const confirmDelete = (contact) => {
+    setContactToDelete(contact);
+    setShowDeleteModal(true);
+  };
+
+  const deleteContact = async () => {
     try {
-      const response = await contactService.deleteContact(contactId);
+      const response = await contactService.deleteContact(contactToDelete.id);
       if (response.success) {
-        console.log('🗑️ CONTACT DELETED:', contactId);
-        // Reload contacts
+        console.log('🗑️ CONTACT DELETED:', contactToDelete.id);
         await loadContactsFromDatabase();
+        setToastMessage(`Contact "${contactToDelete.hr_name}" deleted! 🗑️`);
+        setShowToast(true);
       } else {
         alert('Failed to delete contact');
       }
     } catch (error) {
       console.error('Error deleting contact:', error);
       alert('Failed to delete contact');
+    } finally {
+      setShowDeleteModal(false);
+      setContactToDelete(null);
+    }
+  };
+
+  /* ------------  INDIVIDUAL SEND EMAIL  ------------ */
+  const sendToIndividual = async (contact) => {
+    if (!resume) {
+      alert('Please upload resume first! 📎');
+      return;
+    }
+
+    setSendingContactId(contact.id);
+
+    try {
+      const contactData = [{
+        id: contact.id,
+        hrName: contact.hr_name,
+        email: contact.email,
+        companyName: contact.company_name,
+        jobPosition: contact.job_position,
+        requiredSkills: contact.required_skills || []
+      }];
+
+      console.log('📤 INDIVIDUAL SEND:', contactData[0]);
+
+      const response = await emailService.sendBulkEmails(contactData, resume);
+
+      if (response.success) {
+        setSentCount(prev => prev + 1);
+        setToastMessage(`✅ Resume sent to ${contact.hr_name} at ${contact.company_name}!`);
+        setShowToast(true);
+      } else {
+        alert(`❌ Failed to send email: ${response.message}`);
+      }
+    } catch (error) {
+      console.error('❌ Individual send failed:', error);
+      alert('❌ Failed to send email. Please try again.');
+    } finally {
+      setSendingContactId(null);
     }
   };
 
@@ -203,7 +336,6 @@ function Dashboard() {
     setIsBulkSending(true);
 
     try {
-      // ✅ Prepare complete contact details for each HR
       const allContactsData = hrContacts.map(contact => ({
         id: contact.id,
         hrName: contact.hr_name,
@@ -220,27 +352,20 @@ function Dashboard() {
         contacts: allContactsData
       });
 
-      // ✅ Send same resume to all contacts
       const response = await emailService.sendBulkEmails(allContactsData, resume);
 
       if (response.success) {
-        console.log('✅ BULK EMAIL SUCCESS:', response);
-
-        // Update sent count
         const successCount = response.data?.successCount || allContactsData.length;
         setSentCount(prev => prev + successCount);
 
-        // Show success message
         setToastMessage(
           `✅ Resume sent successfully to ${successCount} HRs! 
            File: ${resume.name} (${(resume.size / 1024 / 1024).toFixed(2)}MB)`
         );
         setShowToast(true);
-
       } else {
         alert(`❌ Failed to send emails: ${response.message}`);
       }
-
     } catch (error) {
       console.error('❌ Bulk send failed:', error);
       alert('❌ Failed to send emails. Please try again.');
@@ -534,38 +659,177 @@ function Dashboard() {
                 <div className="contacts-container">
                   {hrContacts.map(contact => (
                     <div key={contact.id} className="contact-item">
-                      <div className="contact-header">
-                        <div className="contact-avatar">
-                          {contact.hr_name.charAt(0).toUpperCase()}
+                      {editingId === contact.id ? (
+                        /* ===== EDIT MODE ===== */
+                        <div className="edit-mode">
+                          <div className="edit-header">
+                            <h4>✏️ Editing Contact</h4>
+                            <div className="edit-actions">
+                              <button
+                                className="save-btn"
+                                onClick={saveEdit}
+                                title="Save changes"
+                              >
+                                <IoSave />
+                              </button>
+                              <button
+                                className="cancel-btn"
+                                onClick={cancelEditing}
+                                title="Cancel editing"
+                              >
+                                <IoClose />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="edit-form">
+                            <div className="edit-row">
+                              <input
+                                type="text"
+                                className="edit-input"
+                                name="hrName"
+                                value={editFormData.hrName}
+                                onChange={handleEditInputChange}
+                                placeholder="HR Name"
+                              />
+                              <input
+                                type="email"
+                                className="edit-input"
+                                name="email"
+                                value={editFormData.email}
+                                onChange={handleEditInputChange}
+                                placeholder="Email"
+                              />
+                            </div>
+                            <div className="edit-row">
+                              <input
+                                type="text"
+                                className="edit-input"
+                                name="companyName"
+                                value={editFormData.companyName}
+                                onChange={handleEditInputChange}
+                                placeholder="Company Name"
+                              />
+                              <select
+                                className="edit-input"
+                                name="jobPosition"
+                                value={editFormData.jobPosition}
+                                onChange={handleEditInputChange}
+                              >
+                                <option value="">Select position</option>
+                                <option value="Software Engineer">Software Engineer</option>
+                                <option value="Full Stack Developer">Full Stack Developer</option>
+                                <option value="Frontend Developer">Frontend Developer</option>
+                                <option value="Backend Developer">Backend Developer</option>
+                                <option value="React Developer">React Developer</option>
+                                <option value="Node.js Developer">Node.js Developer</option>
+                              </select>
+                            </div>
+                            <div className="edit-skills-section">
+                              <div className="multiselect-container">
+                                <div className="multiselect-input-wrapper">
+                                  {editFormData.requiredSkills?.map(skill => (
+                                    <span key={skill} className="skill-chip">
+                                      {skill}
+                                      <button
+                                        type="button"
+                                        className="remove-skill-btn"
+                                        onClick={() => removeEditSkill(skill)}
+                                      >
+                                        ×
+                                      </button>
+                                    </span>
+                                  ))}
+                                  <input
+                                    type="text"
+                                    className="multiselect-input"
+                                    placeholder="Add skills..."
+                                    value={editSkillSearchTerm}
+                                    onChange={e => {
+                                      setEditSkillSearchTerm(e.target.value);
+                                      setIsEditSkillsOpen(true);
+                                    }}
+                                    onKeyDown={handleEditSkillsKeyDown}
+                                    onFocus={() => setIsEditSkillsOpen(true)}
+                                  />
+                                </div>
+                                {isEditSkillsOpen && filteredEditSkills.length > 0 && (
+                                  <div className="skills-inline-options">
+                                    {filteredEditSkills.slice(0, 6).map(skill => (
+                                      <button
+                                        key={skill}
+                                        type="button"
+                                        className="skill-option-btn"
+                                        onMouseDown={() => addEditSkill(skill)}
+                                      >
+                                        + {skill}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                        <div className="contact-details">
-                          <h4>{contact.hr_name}</h4>
-                          <p>{contact.company_name}</p>
-                        </div>
-                        <button
-                          className="delete-button"
-                          onClick={() => deleteContact(contact.id)}
-                        >
-                          <i className="bi bi-trash" />
-                        </button>
-                      </div>
-                      <div className="contact-info">
-                        <div className="info-item">
-                          <i className="bi bi-briefcase" />
-                          <span>{contact.job_position}</span>
-                        </div>
-                        <div className="info-item">
-                          <i className="bi bi-envelope" />
-                          <span>{contact.email}</span>
-                        </div>
-                      </div>
-                      <div className="contact-skills">
-                        {contact.required_skills?.map(skill => (
-                          <span key={skill} className="skill-tag">
-                            {skill}
-                          </span>
-                        ))}
-                      </div>
+                      ) : (
+                        /* ===== VIEW MODE ===== */
+                        <>
+                          <div className="contact-header">
+                            <div className="contact-avatar">
+                              {contact.hr_name.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="contact-details">
+                              <h4>{contact.hr_name}</h4>
+                              <p>{contact.company_name}</p>
+                            </div>
+                            <div className="contact-actions">
+                              <button
+                                className="send-individual-btn"
+                                onClick={() => sendToIndividual(contact)}
+                                disabled={!resume || sendingContactId === contact.id}
+                                title={!resume ? 'Upload resume first' : 'Send resume to this HR'}
+                              >
+                                {sendingContactId === contact.id ? (
+                                  <div className="spinner-small" />
+                                ) : (
+                                  <IoSend />
+                                )}
+                              </button>
+                              <button
+                                className="edit-button"
+                                onClick={() => startEditing(contact)}
+                                title="Edit contact"
+                              >
+                                <IoPencil />
+                              </button>
+                              <button
+                                className="delete-button"
+                                onClick={() => confirmDelete(contact)}
+                                title="Delete contact"
+                              >
+                                <MdDelete />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="contact-info">
+                            <div className="info-item">
+                              <i className="bi bi-briefcase" />
+                              <span>{contact.job_position}</span>
+                            </div>
+                            <div className="info-item">
+                              <i className="bi bi-envelope" />
+                              <span>{contact.email}</span>
+                            </div>
+                          </div>
+                          <div className="contact-skills">
+                            {contact.required_skills?.map(skill => (
+                              <span key={skill} className="skill-tag">
+                                {skill}
+                              </span>
+                            ))}
+                          </div>
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -592,6 +856,29 @@ function Dashboard() {
           </div>
         </div>
       </footer>
+
+      {/* ----------  DELETE CONFIRMATION MODAL  ---------- */}
+      <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Confirm Delete</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {contactToDelete && (
+            <p>
+              Are you sure you want to delete <strong>{contactToDelete.hr_name}</strong> from{' '}
+              <strong>{contactToDelete.company_name}</strong>?
+            </p>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={deleteContact}>
+            Delete
+          </Button>
+        </Modal.Footer>
+      </Modal>
 
       {/* ----------  TOAST  ---------- */}
       <ToastContainer position="top-end" className="toast-wrapper">

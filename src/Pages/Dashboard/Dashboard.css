@@ -17,10 +17,16 @@
     --accent-secondary: #764ba2;
     --accent-success: #48bb78;
     --accent-danger: #f56565;
+    --accent-warning: #ed8936;
+    --accent-info-: #4299e1;
+
+    --accent-info: #4299e1;
 
     --gradient-primary: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
     --gradient-surface: linear-gradient(135deg, var(--bg-secondary), var(--surface));
     --gradient-success: linear-gradient(135deg, #48bb78, #38a169);
+    --gradient-danger: linear-gradient(135deg, #f56565, #e53e3e);
+    --gradient-warning: linear-gradient(135deg, #ed8936, #dd6b20);
 
     --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
@@ -223,7 +229,6 @@ body,
 /* FIXED HEIGHT CONTAINER FOR RESUME */
 .resume-upload-container {
     height: 120px;
-    /* Fixed height - बिलकुल same रहेगी */
     display: flex;
     align-items: center;
     justify-content: center;
@@ -423,23 +428,19 @@ body,
 /* Custom scrollbar styling */
 .multiselect-input-wrapper::-webkit-scrollbar {
     width: 4px;
-    /* Patla scrollbar */
 }
 
 .multiselect-input-wrapper::-webkit-scrollbar-track {
     background: transparent;
-    /* Track transparent */
 }
 
 .multiselect-input-wrapper::-webkit-scrollbar-thumb {
     background: #000;
-    /* Black color */
     border-radius: 2px;
 }
 
 .multiselect-input-wrapper::-webkit-scrollbar-thumb:hover {
     background: #333;
-    /* Slightly lighter on hover */
 }
 
 /* Firefox scrollbar styling */
@@ -540,6 +541,7 @@ body,
     gap: .4rem;
     box-shadow: var(--shadow-sm);
     transition: all .3s ease;
+    cursor: pointer;
 }
 
 .primary-btn:hover:not(:disabled) {
@@ -565,6 +567,7 @@ body,
     gap: .4rem;
     box-shadow: var(--shadow-sm);
     transition: all .3s ease;
+    cursor: pointer;
 }
 
 .secondary-btn:hover:not(:disabled) {
@@ -577,12 +580,209 @@ body,
     cursor: not-allowed;
 }
 
-/* ---------- SPINNER ---------- */
+/* ---------- EDIT MODE STYLES ---------- */
+.edit-mode {
+    padding: 1rem;
+    background: var(--bg-secondary);
+    border: 2px solid var(--accent-info-);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+    animation: editModeIn 0.3s ease;
+}
+
+@keyframes editModeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.edit-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--bg-tertiary);
+}
+
+.edit-header h4 {
+    margin: 0;
+    color: var(--accent-warning);
+    font-size: 1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.edit-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.save-btn,
+.cancel-btn {
+    padding: 0.5rem;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    width: 36px;
+    height: 36px;
+    transition: all 0.2s ease;
+}
+
+.save-btn {
+    background: var(--gradient-success);
+    color: white;
+}
+
+.save-btn:hover {
+    background: var(--accent-success);
+    transform: scale(1.05);
+}
+
+.cancel-btn {
+    background: var(--gradient-danger);
+    color: white;
+}
+
+.cancel-btn:hover {
+    background: var(--accent-danger);
+    transform: scale(1.05);
+}
+
+.edit-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.edit-row {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.edit-input {
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    background: var(--surface);
+    color: var(--text-primary);
+    transition: all 0.2s ease;
+}
+
+.edit-input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+    background: var(--surface-hover);
+}
+
+.edit-input::placeholder {
+    color: var(--text-muted);
+}
+
+.edit-skills-section {
+    margin-top: 0.5rem;
+}
+
+/* ---------- CONTACT ACTIONS ---------- */
+.contact-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.send-individual-btn,
+.edit-button {
+    padding: 0.5rem;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    width: 36px;
+    height: 36px;
+    transition: all 0.2s ease;
+}
+
+.send-individual-btn {
+    background: var(--gradient-success);
+    color: white;
+}
+
+.send-individual-btn:hover:not(:disabled) {
+    background: var(--accent-success);
+    transform: scale(1.05);
+}
+
+.send-individual-btn:disabled {
+    background: var(--text-muted);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.edit-button {
+    background: var(--gradient-primary);
+    color: white;
+}
+
+.edit-button:hover {
+    background: var(--accent-primary);
+    transform: scale(1.05);
+}
+
+.delete-button {
+    background: var(--gradient-danger);
+    border: none;
+    color: #fff;
+    padding: .5rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .9rem;
+    min-width: 36px;
+    min-height: 36px;
+    transition: all .2s ease;
+}
+
+.delete-button:hover {
+    background: var(--accent-danger);
+    transform: scale(1.05);
+}
+
+/* ---------- SPINNER ANIMATIONS ---------- */
 .spinner {
     width: 14px;
     height: 14px;
     border: 2px solid rgba(255, 255, 255, .3);
     border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.spinner-small {
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top: 2px solid white;
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
@@ -606,7 +806,12 @@ body,
     border: 1px solid var(--bg-tertiary);
     border-radius: var(--radius-md);
     padding: 1rem;
-    transition: none;
+    transition: all 0.2s ease;
+}
+
+.contact-item:hover {
+    border-color: var(--accent-primary);
+    box-shadow: var(--shadow-sm);
 }
 
 .contact-header {
@@ -650,27 +855,7 @@ body,
     justify-content: center;
     color: #fff;
     font-weight: 700;
-}
-
-.delete-button {
-    background: var(--accent-danger);
-    border: none;
-    color: #fff;
-    padding: .5rem;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: .9rem;
-    min-width: 36px;
-    min-height: 36px;
-    transition: all .2s ease;
-}
-
-.delete-button:hover {
-    background: #e53e3e;
-    transform: scale(1.05);
+    flex-shrink: 0;
 }
 
 .contact-info {
@@ -704,6 +889,7 @@ body,
     border-radius: 8px;
     padding: .15rem .4rem;
     font-size: .7rem;
+    transition: all 0.2s ease;
 }
 
 .skill-tag:hover {
@@ -778,6 +964,32 @@ body,
     border: none;
 }
 
+/* ---------- MODAL OVERRIDES ---------- */
+.modal-content {
+    background: var(--surface) !important;
+    border: 1px solid var(--bg-tertiary) !important;
+    color: var(--text-primary) !important;
+}
+
+.modal-header {
+    border-bottom: 1px solid var(--bg-tertiary) !important;
+}
+
+.modal-footer {
+    border-top: 1px solid var(--bg-tertiary) !important;
+}
+
+.btn-secondary {
+    background: var(--bg-tertiary) !important;
+    border-color: var(--bg-tertiary) !important;
+    color: var(--text-primary) !important;
+}
+
+.btn-danger {
+    background: var(--accent-danger) !important;
+    border-color: var(--accent-danger) !important;
+}
+
 /* ---------- RESPONSIVE BREAKPOINTS ---------- */
 @media (max-width: 1200px) {
     .main-container {
@@ -832,6 +1044,20 @@ body,
         min-width: 100px;
         font-size: .85rem;
     }
+
+    .edit-row {
+        flex-direction: column;
+    }
+
+    .contact-actions {
+        flex-wrap: wrap;
+    }
+
+    .edit-header {
+        flex-direction: column;
+        gap: 0.5rem;
+        text-align: center;
+    }
 }
 
 @media (max-width: 480px) {
@@ -870,5 +1096,28 @@ body,
         width: 16px;
         height: 16px;
         font-size: .8rem;
+    }
+
+    .contact-actions {
+        gap: 0.25rem;
+    }
+
+    .send-individual-btn,
+    .edit-button,
+    .delete-button {
+        width: 32px;
+        height: 32px;
+        font-size: 0.8rem;
+    }
+
+    .edit-mode {
+        padding: 0.75rem;
+    }
+
+    .save-btn,
+    .cancel-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 0.9rem;
     }
 }

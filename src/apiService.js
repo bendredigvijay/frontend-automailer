@@ -1,174 +1,108 @@
-// API Configuration
+// apiService.js
 const API_BASE_URL = 'http://localhost:5000/api';
 
-// Prevent double API calls with request tracking
-let requestTracker = {
-  isAddingContact: false,
-  isDeletingContact: false,
-  isLoadingContacts: false,
-  isSendingBulkEmails: false
+// Request cache to prevent duplicate calls
+const requestCache = new Map();
+const CACHE_DURATION = 1000; // 1 second
+
+const getCachedRequest = async (url, options = {}) => {
+  const cacheKey = `${url}-${JSON.stringify(options)}`;
+  const now = Date.now();
+  
+  // Check if we have a recent cached request
+  if (requestCache.has(cacheKey)) {
+    const { promise, timestamp } = requestCache.get(cacheKey);
+    if (now - timestamp < CACHE_DURATION) {
+      console.log(`🔄 Using cached request for: ${url}`);
+      return promise;
+    }
+  }
+  
+  // Make new request
+  console.log(`📡 Making fresh API call: ${url}`);
+  const promise = fetch(url, options).then(res => res.json());
+  requestCache.set(cacheKey, { promise, timestamp: now });
+  
+  // Clear cache after duration
+  setTimeout(() => requestCache.delete(cacheKey), CACHE_DURATION);
+  
+  return promise;
 };
 
-// Contact Service Functions
 export const contactService = {
-  // Get all contacts from database (PREVENT DOUBLE CALLS)
+  // Get all contacts with caching
   getAllContacts: async () => {
-    if (requestTracker.isLoadingContacts) {
-      return { success: false, message: 'Already loading' };
-    }
-    
-    requestTracker.isLoadingContacts = true;
-    
-    try {
-      const response = await fetch(`${API_BASE_URL}/getAllContacts`);
-      const data = await response.json();
-      return data;
-      
-    } catch (error) {
-      console.error('❌ Error fetching contacts:', error);
-      throw error;
-    } finally {
-      requestTracker.isLoadingContacts = false;
-    }
+    return await getCachedRequest(`${API_BASE_URL}/getAllContacts`);
   },
 
-  // Add new contact to database (PREVENT DOUBLE CALLS)
+  // Add new contact
   addContact: async (contactData) => {
-    if (requestTracker.isAddingContact) {
-      return { success: false, message: 'Already adding' };
-    }
+    const response = await fetch(`${API_BASE_URL}/addContact`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(contactData),
+    });
     
-    requestTracker.isAddingContact = true;
-    
-    try {
-      const response = await fetch(`${API_BASE_URL}/addContact`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(contactData)
-      });
-      
-      const data = await response.json();
-      console.log('✅ ADD CONTACT RESPONSE:', data);
-      return data;
-      
-    } catch (error) {
-      console.error('❌ Error adding contact:', error);
-      throw error;
-    } finally {
-      requestTracker.isAddingContact = false;
-    }
+    // Clear getAllContacts cache after successful add
+    requestCache.clear();
+    return await response.json();
   },
 
-  deleteContact: async (contactId) => {
-    if (requestTracker.isDeletingContact) {
-      console.log('⚠️ Contact already being deleted, skipping...');
-      return { success: false, message: 'Already deleting' };
-    }
+  // Update contact
+  updateContact: async (id, contactData) => {
+    const response = await fetch(`${API_BASE_URL}/updateContact/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(contactData),
+    });
     
-    requestTracker.isDeletingContact = true;
+    // Clear cache after successful update
+    requestCache.clear();
+    return await response.json();
+  },
+
+  // Delete contact (soft delete)
+  deleteContact: async (id) => {
+    const response = await fetch(`${API_BASE_URL}/deleteContact/${id}`, {
+      method: 'DELETE',
+    });
     
-    try {
-      console.log('🗑️ DELETING CONTACT:', contactId);
-      
-      const response = await fetch(`${API_BASE_URL}/deleteContact/${contactId}`, {
-        method: 'DELETE'
-      });
-      
-      const data = await response.json();
-      console.log('✅ DELETE RESPONSE:', data);
-      return data;
-      
-    } catch (error) {
-      console.error('❌ Error deleting contact:', error);
-      throw error;
-    } finally {
-      requestTracker.isDeletingContact = false;
-    }
+    // Clear cache after successful delete
+    requestCache.clear();
+    return await response.json();
+  },
+
+  // Get single contact
+  getContact: async (id) => {
+    return await getCachedRequest(`${API_BASE_URL}/getContact/${id}`);
   }
 };
 
-// ✅ FIXED EMAIL SERVICE
 export const emailService = {
-  // Send bulk emails with same resume to all HR contacts
-  sendBulkEmails: async (contactsData, resumeFile) => {
-    if (requestTracker.isSendingBulkEmails) {
-      return { success: false, message: 'Already sending bulk emails' };
-    }
-    
-    requestTracker.isSendingBulkEmails = true;
-    
-    try {
-      console.log('📤 BULK EMAIL SERVICE CALLED:', {
-        contactsCount: contactsData?.length || 0,
-        resumeFile: resumeFile?.name || 'No file',
-        resumeSize: resumeFile ? (resumeFile.size / 1024 / 1024).toFixed(2) + 'MB' : 'N/A'
-      });
+  // Send bulk emails
+  sendBulkEmails: async (contacts, resumeFile) => {
+    const formData = new FormData();
+    formData.append('resume', resumeFile);
+    formData.append('contacts', JSON.stringify(contacts));
 
-      // ✅ Validation checks
-      if (!resumeFile) {
-        throw new Error('Resume file is required for bulk email sending');
-      }
+    const response = await fetch(`${API_BASE_URL}/emails/bulk-send`, {
+      method: 'POST',
+      body: formData,
+    });
+    return await response.json();
+  },
 
-      if (!contactsData || contactsData.length === 0) {
-        throw new Error('No contacts provided for bulk email sending');
-      }
+  // Get email logs
+  getLogs: async () => {
+    return await getCachedRequest(`${API_BASE_URL}/emails/logs`);
+  },
 
-      // ✅ Clean and validate contacts data
-      const cleanContactsData = contactsData.map(contact => ({
-        id: contact.id || null,
-        hrName: contact.hrName || 'HR',
-        email: contact.email || '',
-        companyName: contact.companyName || 'Company',
-        jobPosition: contact.jobPosition || 'Position',
-        requiredSkills: Array.isArray(contact.requiredSkills) ? contact.requiredSkills : []
-      }));
-
-      console.log('📋 CLEANED CONTACTS DATA:', cleanContactsData);
-      
-      // ✅ Prepare FormData properly
-      const formData = new FormData();
-      
-      // Add resume file
-      formData.append('resume', resumeFile);
-      
-      // ✅ Add contacts as properly stringified JSON
-      formData.append('contacts', JSON.stringify(cleanContactsData));
-      
-      // ✅ Debug FormData contents
-      console.log('📤 FORM DATA CONTENTS:');
-      console.log('- Resume file:', resumeFile.name, `(${resumeFile.size} bytes)`);
-      console.log('- Contacts JSON:', JSON.stringify(cleanContactsData));
-      
-      const response = await fetch(`${API_BASE_URL}/emails/bulk-send`, {
-        method: 'POST',
-        body: formData
-        // ❌ Don't set Content-Type header when using FormData
-        // FormData automatically sets multipart/form-data
-      });
-      
-      console.log('📥 RESPONSE STATUS:', response.status, response.statusText);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ ERROR RESPONSE:', errorText);
-        throw new Error(`HTTP Error: ${response.status} - ${errorText}`);
-      }
-      
-      const data = await response.json();
-      console.log('✅ BULK EMAIL API RESPONSE:', data);
-      return data;
-      
-    } catch (error) {
-      console.error('❌ Error sending bulk emails:', error);
-      return {
-        success: false,
-        message: error.message || 'Failed to send bulk emails',
-        error: error.toString()
-      };
-    } finally {
-      requestTracker.isSendingBulkEmails = false;
-    }
+  // Get email stats
+  getStats: async () => {
+    return await getCachedRequest(`${API_BASE_URL}/emails/stats`);
   }
 };
