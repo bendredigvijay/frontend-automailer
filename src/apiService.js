@@ -1,10 +1,17 @@
-// apiService.js
-const API_BASE_URL = 'http://localhost:5000/api';
+// apiService.js - Complete Production Ready Code
+// ✅ FIXED: Environment-based API URL with fallback
+const API_BASE_URL = process.env.REACT_APP_API_URL 
+  ? `${process.env.REACT_APP_API_URL}/api`
+  : 'http://localhost:5000/api';
+
+console.log('🔗 API Base URL:', API_BASE_URL);
+console.log('🌍 Environment:', process.env.REACT_APP_ENVIRONMENT || 'development');
 
 // Request cache to prevent duplicate calls
 const requestCache = new Map();
 const CACHE_DURATION = 1000; // 1 second
 
+// ✅ UPDATED: getCachedRequest with better error handling
 const getCachedRequest = async (url, options = {}) => {
   const cacheKey = `${url}-${JSON.stringify(options)}`;
   const now = Date.now();
@@ -18,9 +25,24 @@ const getCachedRequest = async (url, options = {}) => {
     }
   }
   
-  // Make new request
+  // Make new request with better error handling
   console.log(`📡 Making fresh API call: ${url}`);
-  const promise = fetch(url, options).then(res => res.json());
+  const promise = fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers
+    }
+  }).then(async (res) => {
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+    return res.json();
+  }).catch((error) => {
+    console.error(`❌ API Error for ${url}:`, error);
+    throw error;
+  });
+  
   requestCache.set(cacheKey, { promise, timestamp: now });
   
   // Clear cache after duration
@@ -29,56 +51,94 @@ const getCachedRequest = async (url, options = {}) => {
   return promise;
 };
 
+// ✅ CONTACT SERVICE
 export const contactService = {
   // Get all contacts with caching
   getAllContacts: async () => {
-    return await getCachedRequest(`${API_BASE_URL}/getAllContacts`);
+    try {
+      return await getCachedRequest(`${API_BASE_URL}/getAllContacts`);
+    } catch (error) {
+      console.error('Error fetching contacts:', error);
+      return { success: false, error: error.message, data: [] };
+    }
   },
 
   // Add new contact
   addContact: async (contactData) => {
-    const response = await fetch(`${API_BASE_URL}/addContact`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(contactData),
-    });
-    
-    // Clear getAllContacts cache after successful add
-    requestCache.clear();
-    return await response.json();
+    try {
+      const response = await fetch(`${API_BASE_URL}/addContact`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(contactData),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      // Clear getAllContacts cache after successful add
+      requestCache.clear();
+      return await response.json();
+    } catch (error) {
+      console.error('Error adding contact:', error);
+      return { success: false, error: error.message };
+    }
   },
 
   // Update contact
   updateContact: async (id, contactData) => {
-    const response = await fetch(`${API_BASE_URL}/updateContact/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(contactData),
-    });
-    
-    // Clear cache after successful update
-    requestCache.clear();
-    return await response.json();
+    try {
+      const response = await fetch(`${API_BASE_URL}/updateContact/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(contactData),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      // Clear cache after successful update
+      requestCache.clear();
+      return await response.json();
+    } catch (error) {
+      console.error('Error updating contact:', error);
+      return { success: false, error: error.message };
+    }
   },
 
   // Delete contact (soft delete)
   deleteContact: async (id) => {
-    const response = await fetch(`${API_BASE_URL}/deleteContact/${id}`, {
-      method: 'DELETE',
-    });
-    
-    // Clear cache after successful delete
-    requestCache.clear();
-    return await response.json();
+    try {
+      const response = await fetch(`${API_BASE_URL}/deleteContact/${id}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      // Clear cache after successful delete
+      requestCache.clear();
+      return await response.json();
+    } catch (error) {
+      console.error('Error deleting contact:', error);
+      return { success: false, error: error.message };
+    }
   },
 
   // Get single contact
   getContact: async (id) => {
-    return await getCachedRequest(`${API_BASE_URL}/getContact/${id}`);
+    try {
+      return await getCachedRequest(`${API_BASE_URL}/getContact/${id}`);
+    } catch (error) {
+      console.error('Error fetching contact:', error);
+      return { success: false, error: error.message };
+    }
   }
 };
 
@@ -121,14 +181,17 @@ export const userService = {
         method: 'DELETE',
       });
       
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       // Clear user profile cache after successful delete
       const cacheKeys = Array.from(requestCache.keys()).filter(key => 
         key.includes('/user/profile')
       );
       cacheKeys.forEach(key => requestCache.delete(key));
       
-      const data = await response.json();
-      return data;
+      return await response.json();
     } catch (error) {
       console.error('Error deleting user profile:', error);
       return { success: false, error: error.message };
@@ -145,6 +208,10 @@ export const userService = {
         },
         body: JSON.stringify(profileData),
       });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
       
       // Clear user profile cache after successful save
       const cacheKeys = Array.from(requestCache.keys()).filter(key => 
@@ -170,6 +237,10 @@ export const userService = {
         body: JSON.stringify(profileData),
       });
       
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       // Clear user profile cache after successful update
       const cacheKeys = Array.from(requestCache.keys()).filter(key => 
         key.includes('/user/profile')
@@ -193,6 +264,10 @@ export const userService = {
         },
         body: JSON.stringify(profileData),
       });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
       
       // Clear cache after update
       const cacheKeys = Array.from(requestCache.keys()).filter(key => 
@@ -228,6 +303,10 @@ export const userService = {
         body: formData,
       });
 
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
       // Clear cache after upload
       const cacheKeys = Array.from(requestCache.keys()).filter(key => 
         key.includes('/user/profile')
@@ -252,6 +331,7 @@ export const userService = {
   }
 };
 
+// ✅ EMAIL SERVICE
 export const emailService = {
   // Send bulk emails with user profile data
   sendBulkEmails: async (contacts, resumeFile, userProfile = null) => {
@@ -277,6 +357,10 @@ export const emailService = {
         body: formData,
       });
       
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       return await response.json();
     } catch (error) {
       console.error('Error sending bulk emails:', error);
@@ -300,6 +384,10 @@ export const emailService = {
         body: formData,
       });
       
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       return await response.json();
     } catch (error) {
       console.error('Error sending individual email:', error);
@@ -318,6 +406,10 @@ export const emailService = {
         body: JSON.stringify({ userProfile }),
       });
       
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       return await response.json();
     } catch (error) {
       console.error('Error sending test email:', error);
@@ -331,7 +423,7 @@ export const emailService = {
       return await getCachedRequest(`${API_BASE_URL}/emails/logs`);
     } catch (error) {
       console.error('Error fetching email logs:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: error.message, data: [] };
     }
   },
 
@@ -341,7 +433,7 @@ export const emailService = {
       return await getCachedRequest(`${API_BASE_URL}/emails/logs/user/${userId}`);
     } catch (error) {
       console.error('Error fetching email logs by user:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: error.message, data: [] };
     }
   },
 
@@ -381,7 +473,7 @@ export const emailService = {
       return await getCachedRequest(`${API_BASE_URL}/emails/batches`);
     } catch (error) {
       console.error('Error fetching email batches:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: error.message, data: [] };
     }
   },
 
@@ -391,7 +483,7 @@ export const emailService = {
       return await getCachedRequest(`${API_BASE_URL}/emails/batch/${batchId}`);
     } catch (error) {
       console.error('Error fetching batch emails:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: error.message, data: [] };
     }
   },
 
@@ -401,6 +493,10 @@ export const emailService = {
       const response = await fetch(`${API_BASE_URL}/emails/resend/${batchId}`, {
         method: 'POST',
       });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
       
       return await response.json();
     } catch (error) {
@@ -486,6 +582,10 @@ export const resumeService = {
         body: formData,
       });
 
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
       // Clear cache after upload
       const cacheKeys = Array.from(requestCache.keys()).filter(key => 
         key.includes('/user/profile') || key.includes('/user/resume')
@@ -516,6 +616,10 @@ export const resumeService = {
         method: 'DELETE',
       });
 
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
       // Clear cache after delete
       const cacheKeys = Array.from(requestCache.keys()).filter(key => 
         key.includes('/user/profile') || key.includes('/user/resume')
@@ -538,7 +642,7 @@ export const resumeService = {
         const blob = await response.blob();
         return { success: true, blob };
       } else {
-        return { success: false, error: 'Failed to download resume' };
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
     } catch (error) {
       console.error('Error downloading resume:', error);
@@ -598,16 +702,44 @@ export const apiUtils = {
     return `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   },
 
-  // ✅ NEW: Check API health
+  // ✅ UPDATED: Check API health
   checkApiHealth: async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/health`);
+      const response = await fetch(`${API_BASE_URL.replace('/api', '')}/api/health`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
       return await response.json();
     } catch (error) {
       console.error('Error checking API health:', error);
       return { success: false, error: error.message };
     }
-  }
+  },
+
+  // ✅ NEW: Test connectivity
+  testConnectivity: async () => {
+    try {
+      const startTime = Date.now();
+      const response = await fetch(`${API_BASE_URL.replace('/api', '')}/api/health`);
+      const endTime = Date.now();
+      
+      return {
+        success: response.ok,
+        status: response.status,
+        responseTime: endTime - startTime,
+        url: API_BASE_URL
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+        url: API_BASE_URL
+      };
+    }
+  },
+
+  // ✅ NEW: Get current API base URL
+  getApiBaseUrl: () => API_BASE_URL
 };
 
 // ✅ NEW: Settings Service
@@ -632,6 +764,10 @@ export const settingsService = {
         },
         body: JSON.stringify(settings),
       });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
 
       // Clear settings cache
       const cacheKeys = Array.from(requestCache.keys()).filter(key => 
