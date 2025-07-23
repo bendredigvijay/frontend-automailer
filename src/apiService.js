@@ -1,11 +1,6 @@
 // apiService.js - Complete Production Ready Code
 // ✅ FIXED: Environment-based API URL with fallback
-const API_BASE_URL = process.env.REACT_APP_API_URL 
-  ? `${process.env.REACT_APP_API_URL}/api`
-  : 'http://localhost:5000/api';
-
-console.log('🔗 API Base URL:', API_BASE_URL);
-console.log('🌍 Environment:', process.env.REACT_APP_ENVIRONMENT || 'development');
+const API_BASE_URL = 'https://servise-automailer-1.onrender.com/api';
 
 // Request cache to prevent duplicate calls
 const requestCache = new Map();
