@@ -12,9 +12,10 @@ import {
   IoLogOut,
   IoSettings,
   IoRefresh,
+  IoCopy,
 } from 'react-icons/io5';
 import { IoIosContacts } from "react-icons/io";
-import { MdEmail, MdDelete, MdPerson, MdBusiness, MdVerifiedUser } from 'react-icons/md';
+import { MdEmail, MdDelete, MdPerson, MdBusiness, MdVerifiedUser, MdContentCopy } from 'react-icons/md';
 import { contactService, emailService, userService } from '../../apiService';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -83,6 +84,20 @@ function Dashboard() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [contactToDelete, setContactToDelete] = useState(null);
 
+  // ✅ NEW: Clone functionality states
+  const [showCloneModal, setShowCloneModal] = useState(false);
+  const [contactToClone, setContactToClone] = useState(null);
+  const [cloneFormData, setCloneFormData] = useState({
+    hrName: '',
+    email: '',
+    companyName: '',
+    jobPosition: '',
+    requiredSkills: []
+  });
+  const [cloneSkillSearchTerm, setCloneSkillSearchTerm] = useState('');
+  const [isCloneSkillsOpen, setIsCloneSkillsOpen] = useState(false);
+  const [isCloning, setIsCloning] = useState(false);
+
   /* ------------  PRE-DEFINED SKILLS  ------------ */
   const predefinedSkills = [
     'JavaScript', 'React', 'Node.js', 'MongoDB', 'Express.js',
@@ -112,6 +127,13 @@ function Dashboard() {
     s =>
       s.toLowerCase().includes(editSkillSearchTerm.toLowerCase()) &&
       !editFormData.requiredSkills?.includes(s)
+  );
+
+  // ✅ NEW: Clone skills filter
+  const filteredCloneSkills = predefinedSkills.filter(
+    s =>
+      s.toLowerCase().includes(cloneSkillSearchTerm.toLowerCase()) &&
+      !cloneFormData.requiredSkills?.includes(s)
   );
 
   // ✅ Enhanced Safe Avatar Component
@@ -298,6 +320,126 @@ function Dashboard() {
     }
   };
 
+  /* ------------  ✅ NEW: CLONE FUNCTIONALITY  ------------ */
+  const startCloning = (contact) => {
+    setContactToClone(contact);
+    setCloneFormData({
+      hrName: `${contact.hr_name} (Copy)`,
+      email: '', // Don't duplicate email - user should enter new one
+      companyName: contact.company_name,
+      jobPosition: contact.job_position,
+      requiredSkills: [...(contact.required_skills || [])]
+    });
+    setShowCloneModal(true);
+    toast.info(`🔄 Cloning contact: ${contact.hr_name}`);
+  };
+
+  const handleCloneInputChange = (e) => {
+    const { name, value } = e.target;
+    setCloneFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const addCloneSkill = (skill) => {
+    if (!cloneFormData.requiredSkills.includes(skill)) {
+      setCloneFormData(prev => ({
+        ...prev,
+        requiredSkills: [...prev.requiredSkills, skill]
+      }));
+    }
+    setCloneSkillSearchTerm('');
+  };
+
+  const removeCloneSkill = (skillToRemove) => {
+    setCloneFormData(prev => ({
+      ...prev,
+      requiredSkills: prev.requiredSkills.filter(s => s !== skillToRemove)
+    }));
+  };
+
+  const handleCloneSkillsKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (cloneSkillSearchTerm.trim()) addCloneSkill(cloneSkillSearchTerm.trim());
+    }
+    if (e.key === 'Backspace' && !cloneSkillSearchTerm) {
+      const prev = cloneFormData.requiredSkills;
+      if (prev.length) removeCloneSkill(prev[prev.length - 1]);
+    }
+  };
+
+  const handleCloneSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!cloneFormData.hrName?.trim()) {
+      toast.error('Please enter HR name');
+      return;
+    }
+    if (!cloneFormData.email?.trim()) {
+      toast.error('Please enter HR email');
+      return;
+    }
+    if (!cloneFormData.companyName?.trim()) {
+      toast.error('Please enter company name');
+      return;
+    }
+    if (!cloneFormData.jobPosition?.trim()) {
+      toast.error('Please select job position');
+      return;
+    }
+    if (!cloneFormData.requiredSkills.length) {
+      toast.error('Please add at least one skill');
+      return;
+    }
+
+    setIsCloning(true);
+
+    try {
+      const response = await contactService.addContact(cloneFormData);
+
+      if (response.success) {
+        console.log('✅ CONTACT CLONED:', response.data);
+        setHrContacts(prev => [response.data, ...prev]);
+
+        // Reset clone modal
+        setShowCloneModal(false);
+        setContactToClone(null);
+        setCloneFormData({
+          hrName: '',
+          email: '',
+          companyName: '',
+          jobPosition: '',
+          requiredSkills: []
+        });
+        setCloneSkillSearchTerm('');
+        setIsCloneSkillsOpen(false);
+
+        toast.success(`🎉 Contact cloned successfully! "${response.data.hr_name}" added to your network.`);
+      } else {
+        toast.error(`Failed to clone contact: ${response.error}`);
+      }
+    } catch (error) {
+      console.error('Error cloning contact:', error);
+      toast.error('Failed to clone contact. Please try again.');
+    } finally {
+      setIsCloning(false);
+    }
+  };
+
+  const cancelCloning = () => {
+    setShowCloneModal(false);
+    setContactToClone(null);
+    setCloneFormData({
+      hrName: '',
+      email: '',
+      companyName: '',
+      jobPosition: '',
+      requiredSkills: []
+    });
+    setCloneSkillSearchTerm('');
+    setIsCloneSkillsOpen(false);
+    toast.info('❌ Clone cancelled');
+  };
+
   /* ------------  EDIT FUNCTIONALITY  ------------ */
   const startEditing = (contact) => {
     setEditingId(contact.id);
@@ -306,8 +448,9 @@ function Dashboard() {
       email: contact.email,
       companyName: contact.company_name,
       jobPosition: contact.job_position,
-      requiredSkills: [...contact.required_skills] || []
+      requiredSkills: [...(contact.required_skills || [])]
     });
+    toast.info(`✏️ Editing contact: ${contact.hr_name}`);
   };
 
   const cancelEditing = () => {
@@ -315,6 +458,7 @@ function Dashboard() {
     setEditFormData({});
     setEditSkillSearchTerm('');
     setIsEditSkillsOpen(false);
+    toast.info('❌ Edit cancelled');
   };
 
   const handleEditInputChange = (e) => {
@@ -351,6 +495,28 @@ function Dashboard() {
   };
 
   const saveEdit = async () => {
+    // Validation
+    if (!editFormData.hrName?.trim()) {
+      toast.error('Please enter HR name');
+      return;
+    }
+    if (!editFormData.email?.trim()) {
+      toast.error('Please enter HR email');
+      return;
+    }
+    if (!editFormData.companyName?.trim()) {
+      toast.error('Please enter company name');
+      return;
+    }
+    if (!editFormData.jobPosition?.trim()) {
+      toast.error('Please select job position');
+      return;
+    }
+    if (!editFormData.requiredSkills.length) {
+      toast.error('Please add at least one skill');
+      return;
+    }
+
     try {
       const response = await contactService.updateContact(editingId, editFormData);
       if (response.success) {
@@ -360,7 +526,7 @@ function Dashboard() {
           )
         );
         cancelEditing();
-        toast.success(`✅ Contact updated successfully!`);
+        toast.success(`✅ Contact "${response.data.hr_name}" updated successfully!`);
       } else {
         toast.error(`Failed to update contact: ${response.error}`);
       }
@@ -1138,7 +1304,7 @@ function Dashboard() {
 
                         <div className="profile-details">
                           <div className="detail-row">
-                            <strong >📧 Email:</strong>
+                            <strong>📧 Email:</strong>
                             <span style={{ marginLeft: '-30px' }}>{currentUser.email}</span>
                           </div>
                           <div className="detail-row">
@@ -1414,7 +1580,7 @@ function Dashboard() {
             )}
           </section>
 
-          {/* Contact List Section - Enhanced with real user info */}
+          {/* Contact List Section - Enhanced with real user info and Clone functionality */}
           <section className="contacts-section">
             <div className="section-header">
               <div className="header-left">
@@ -1474,7 +1640,7 @@ function Dashboard() {
                   {hrContacts.map(contact => (
                     <div key={contact.id} className="contact-item">
                       {editingId === contact.id ? (
-                        /* Edit Mode - Enhanced UI */
+                        /* ===== ✅ ENHANCED EDIT MODE WITH PROPER FORM ===== */
                         <div className="edit-mode">
                           <div className="edit-header">
                             <h4>✏️ Editing HR Contact</h4>
@@ -1483,6 +1649,7 @@ function Dashboard() {
                                 className="save-btn"
                                 onClick={saveEdit}
                                 title="Save changes"
+                                disabled={!editFormData.hrName?.trim() || !editFormData.email?.trim() || !editFormData.companyName?.trim() || !editFormData.jobPosition?.trim() || !editFormData.requiredSkills?.length}
                               >
                                 <IoSave />
                               </button>
@@ -1495,11 +1662,131 @@ function Dashboard() {
                               </button>
                             </div>
                           </div>
-                          {/* Edit form would go here - keeping it simple for now */}
-                          <p className="edit-placeholder">Edit form implementation would go here</p>
+
+                          {/* ✅ PROPER EDIT FORM */}
+                          <div className="edit-form-container">
+                            <div className="edit-form-row">
+                              <div className="edit-input-wrapper">
+                                <label className="edit-label">HR Name *</label>
+                                <input
+                                  type="text"
+                                  className="edit-input"
+                                  name="hrName"
+                                  value={editFormData.hrName || ''}
+                                  onChange={handleEditInputChange}
+                                  placeholder="Enter HR name"
+                                  required
+                                />
+                              </div>
+                              <div className="edit-input-wrapper">
+                                <label className="edit-label">HR Email *</label>
+                                <input
+                                  type="email"
+                                  className="edit-input"
+                                  name="email"
+                                  value={editFormData.email || ''}
+                                  onChange={handleEditInputChange}
+                                  placeholder="hr@company.com"
+                                  required
+                                />
+                              </div>
+                            </div>
+
+                            <div className="edit-form-row">
+                              <div className="edit-input-wrapper">
+                                <label className="edit-label">Company *</label>
+                                <input
+                                  type="text"
+                                  className="edit-input"
+                                  name="companyName"
+                                  value={editFormData.companyName || ''}
+                                  onChange={handleEditInputChange}
+                                  placeholder="Company name"
+                                  required
+                                />
+                              </div>
+                              <div className="edit-input-wrapper">
+                                <label className="edit-label">Job Position *</label>
+                                <select
+                                  className="edit-input"
+                                  name="jobPosition"
+                                  value={editFormData.jobPosition || ''}
+                                  onChange={handleEditInputChange}
+                                  required
+                                >
+                                  <option value="">Select position</option>
+                                  <option value="Software Engineer">Software Engineer</option>
+                                  <option value="Full Stack Developer">Full Stack Developer</option>
+                                  <option value="Frontend Developer">Frontend Developer</option>
+                                  <option value="Backend Developer">Backend Developer</option>
+                                  <option value="React Developer">React Developer</option>
+                                  <option value="Node.js Developer">Node.js Developer</option>
+                                  <option value="Python Developer">Python Developer</option>
+                                  <option value="Java Developer">Java Developer</option>
+                                  <option value="DevOps Engineer">DevOps Engineer</option>
+                                  <option value="Data Scientist">Data Scientist</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            {/* ✅ EDIT SKILLS SECTION */}
+                            <div className="edit-skills-wrapper">
+                              <label className="edit-label">Required Skills * ({editFormData.requiredSkills?.length || 0})</label>
+                              <div
+                                className="edit-multiselect-container"
+                                onBlur={() => setIsEditSkillsOpen(false)}
+                              >
+                                <div
+                                  className="edit-multiselect-input-wrapper"
+                                  onClick={() => setIsEditSkillsOpen(true)}
+                                >
+                                  {(editFormData.requiredSkills || []).map(skill => (
+                                    <span key={skill} className="edit-skill-chip">
+                                      {skill}
+                                      <button
+                                        type="button"
+                                        className="edit-remove-skill-btn"
+                                        onClick={() => removeEditSkill(skill)}
+                                        title={`Remove ${skill}`}
+                                      >
+                                        ×
+                                      </button>
+                                    </span>
+                                  ))}
+                                  <input
+                                    type="text"
+                                    className="edit-multiselect-input"
+                                    placeholder="Add skills..."
+                                    value={editSkillSearchTerm}
+                                    onChange={e => {
+                                      setEditSkillSearchTerm(e.target.value);
+                                      setIsEditSkillsOpen(true);
+                                    }}
+                                    onKeyDown={handleEditSkillsKeyDown}
+                                    onFocus={() => setIsEditSkillsOpen(true)}
+                                  />
+                                </div>
+                                {isEditSkillsOpen && filteredEditSkills.length > 0 && (
+                                  <div className="edit-skills-options">
+                                    {filteredEditSkills.slice(0, 6).map(skill => (
+                                      <button
+                                        key={skill}
+                                        type="button"
+                                        className="edit-skill-option-btn"
+                                        onMouseDown={() => addEditSkill(skill)}
+                                        title={`Add ${skill}`}
+                                      >
+                                        + {skill}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       ) : (
-                        /* View Mode - Enhanced with better UI */
+                        /* ===== ✅ ENHANCED VIEW MODE WITH CLONE BUTTON ===== */
                         <>
                           <div className="contact-header">
                             <SafeAvatar
@@ -1530,6 +1817,14 @@ function Dashboard() {
                                 ) : (
                                   <IoSend />
                                 )}
+                              </button>
+                              {/* ✅ NEW: CLONE BUTTON */}
+                              <button
+                                className="clone-button"
+                                onClick={() => startCloning(contact)}
+                                title={`Clone contact: ${contact.hr_name}`}
+                              >
+                                <IoCopy />
                               </button>
                               <button
                                 className="edit-button"
@@ -1601,6 +1896,193 @@ function Dashboard() {
           </div>
         )}
       </footer>
+
+      {/* ----------  ✅ NEW: CLONE MODAL  ---------- */}
+      <Modal show={showCloneModal} onHide={cancelCloning} size="lg" centered>
+        <Modal.Header closeButton className="modal-header-enhanced">
+          <Modal.Title>
+            <IoCopy /> Clone HR Contact
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <div className="clone-modal-content">
+            {contactToClone && (
+              <div className="clone-source-info">
+                <strong>📋 Cloning from:</strong>
+                <div className="source-contact-preview">
+                  <SafeAvatar name={contactToClone.hr_name} className="source-avatar" />
+                  <div className="source-details">
+                    <span className="source-name">{contactToClone.hr_name}</span>
+                    <span className="source-company">{contactToClone.company_name}</span>
+                    <span className="source-position">{contactToClone.job_position}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <Form onSubmit={handleCloneSubmit} className="clone-form">
+              <div className="clone-form-fields">
+                <div className="clone-form-row">
+                  <div className="clone-input-wrapper">
+                    <label className="clone-label required">
+                      <i className="bi bi-person" /> HR Name *
+                    </label>
+                    <input
+                      type="text"
+                      className="clone-input"
+                      name="hrName"
+                      value={cloneFormData.hrName}
+                      onChange={handleCloneInputChange}
+                      placeholder="Enter new HR name"
+                      required
+                    />
+                  </div>
+                  <div className="clone-input-wrapper">
+                    <label className="clone-label required">
+                      <i className="bi bi-envelope" /> HR Email *
+                    </label>
+                    <input
+                      type="email"
+                      className="clone-input"
+                      name="email"
+                      value={cloneFormData.email}
+                      onChange={handleCloneInputChange}
+                      placeholder="Enter new HR email"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="clone-form-row">
+                  <div className="clone-input-wrapper">
+                    <label className="clone-label required">
+                      <i className="bi bi-building" /> Company *
+                    </label>
+                    <input
+                      type="text"
+                      className="clone-input"
+                      name="companyName"
+                      value={cloneFormData.companyName}
+                      onChange={handleCloneInputChange}
+                      placeholder="Company name"
+                      required
+                    />
+                  </div>
+                  <div className="clone-input-wrapper">
+                    <label className="clone-label required">
+                      <i className="bi bi-briefcase" /> Job Position *
+                    </label>
+                    <select
+                      className="clone-input"
+                      name="jobPosition"
+                      value={cloneFormData.jobPosition}
+                      onChange={handleCloneInputChange}
+                      required
+                    >
+                      <option value="">Select job position</option>
+                      <option value="Software Engineer">Software Engineer</option>
+                      <option value="Full Stack Developer">Full Stack Developer</option>
+                      <option value="Frontend Developer">Frontend Developer</option>
+                      <option value="Backend Developer">Backend Developer</option>
+                      <option value="React Developer">React Developer</option>
+                      <option value="Node.js Developer">Node.js Developer</option>
+                      <option value="Python Developer">Python Developer</option>
+                      <option value="Java Developer">Java Developer</option>
+                      <option value="DevOps Engineer">DevOps Engineer</option>
+                      <option value="Data Scientist">Data Scientist</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* ✅ CLONE SKILLS SECTION */}
+                <div className="clone-skills-wrapper">
+                  <label className="clone-label required">
+                    <i className="bi bi-gear" /> Required Skills *
+                    <small className="clone-skill-count">({cloneFormData.requiredSkills?.length || 0} selected)</small>
+                  </label>
+                  <div
+                    className="clone-multiselect-container"
+                    onBlur={() => setIsCloneSkillsOpen(false)}
+                  >
+                    <div
+                      className="clone-multiselect-input-wrapper"
+                      onClick={() => setIsCloneSkillsOpen(true)}
+                    >
+                      {(cloneFormData.requiredSkills || []).map(skill => (
+                        <span key={skill} className="clone-skill-chip">
+                          {skill}
+                          <button
+                            type="button"
+                            className="clone-remove-skill-btn"
+                            onClick={() => removeCloneSkill(skill)}
+                            title={`Remove ${skill}`}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                      <input
+                        type="text"
+                        className="clone-multiselect-input"
+                        placeholder={
+                          (cloneFormData.requiredSkills || []).length
+                            ? 'Add more skills…'
+                            : 'Type to search skills…'
+                        }
+                        value={cloneSkillSearchTerm}
+                        onChange={e => {
+                          setCloneSkillSearchTerm(e.target.value);
+                          setIsCloneSkillsOpen(true);
+                        }}
+                        onKeyDown={handleCloneSkillsKeyDown}
+                        onFocus={() => setIsCloneSkillsOpen(true)}
+                      />
+                    </div>
+                    {isCloneSkillsOpen && filteredCloneSkills.length > 0 && (
+                      <div className="clone-skills-options">
+                        {filteredCloneSkills.slice(0, 8).map(skill => (
+                          <button
+                            key={skill}
+                            type="button"
+                            className="clone-skill-option-btn"
+                            onMouseDown={() => addCloneSkill(skill)}
+                            title={`Add ${skill}`}
+                          >
+                            + {skill}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <small className="clone-field-help">
+                    Skills are pre-filled from the original contact. You can modify them as needed.
+                  </small>
+                </div>
+              </div>
+            </Form>
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={cancelCloning} disabled={isCloning}>
+            <IoClose /> Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleCloneSubmit}
+            disabled={isCloning || !cloneFormData.hrName?.trim() || !cloneFormData.email?.trim() || !cloneFormData.companyName?.trim() || !cloneFormData.jobPosition?.trim() || !cloneFormData.requiredSkills?.length}
+          >
+            {isCloning ? (
+              <>
+                <div className="spinner" /> Cloning Contact...
+              </>
+            ) : (
+              <>
+                <IoCopy /> Create Cloned Contact
+              </>
+            )}
+          </Button>
+        </Modal.Footer>
+      </Modal>
 
       {/* ----------  ✅ ENHANCED USER DETAILS MODAL  ---------- */}
       <Modal show={showUserModal} onHide={() => setShowUserModal(false)} size="lg" centered>
