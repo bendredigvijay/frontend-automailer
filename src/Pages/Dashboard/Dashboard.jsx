@@ -20,6 +20,7 @@ import { contactService, emailService, userService } from '../../apiService';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import './Dashboard.css';
+import { AppConfig } from '../../utils/dummy';
 
 function Dashboard() {
   // Active tab state
@@ -98,18 +99,8 @@ function Dashboard() {
   const [isCloneSkillsOpen, setIsCloneSkillsOpen] = useState(false);
   const [isCloning, setIsCloning] = useState(false);
 
-  /* ------------  PRE-DEFINED SKILLS  ------------ */
-  const predefinedSkills = [
-    'JavaScript', 'React', 'Node.js', 'MongoDB', 'Express.js',
-    'Python', 'Django', 'Flask', 'PostgreSQL', 'MySQL',
-    'HTML', 'CSS', 'TypeScript', 'Vue.js', 'Angular',
-    'PHP', 'Laravel', 'Java', 'Spring Boot', 'C#',
-    'ASP.NET', 'Ruby', 'Rails', 'Go', 'Rust',
-    'Docker', 'Kubernetes', 'AWS', 'Azure', 'GCP',
-    'GraphQL', 'REST API', 'Git', 'Jenkins', 'Redis',
-    'Bootstrap', 'Sass', 'Tailwind CSS', 'Material UI',
-    'Next.js', 'Nuxt.js', 'Redux', 'Vuex', 'Firebase'
-  ];
+  // ✅ CONFIG-BASED: Use predefined skills from config
+  const predefinedSkills = AppConfig.predefinedSkills;
 
   const filteredSkills = predefinedSkills.filter(
     s =>
@@ -137,7 +128,7 @@ function Dashboard() {
   );
 
   // ✅ Enhanced Safe Avatar Component
-  const SafeAvatar = ({ name, className = "contact-avatar", fallback = "?" }) => {
+  const SafeAvatar = ({ name, className = "contact-avatar", fallback = AppConfig.defaults.avatarFallback }) => {
     const displayName = name && typeof name === 'string' && name.trim()
       ? name.trim().charAt(0).toUpperCase()
       : fallback;
@@ -202,7 +193,7 @@ function Dashboard() {
 
         toast.success(`👋 Welcome back, ${userData.fullName}!`, {
           position: "top-right",
-          autoClose: 3000,
+          autoClose: AppConfig.ui.successToastAutoCloseTime,
         });
       } else {
         console.log('⚠️ No user profile found');
@@ -242,17 +233,12 @@ function Dashboard() {
     const file = e.target.files[0];
     if (!file) return;
 
-    const allowed = [
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    ];
-    if (!allowed.includes(file.type)) {
+    if (!AppConfig.fileUpload.allowedTypes.includes(file.type)) {
       toast.error('Please upload PDF, DOC or DOCX only');
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('File must be under 5 MB');
+    if (file.size > AppConfig.fileUpload.maxSizeInMB * 1024 * 1024) {
+      toast.error(`File must be under ${AppConfig.fileUpload.maxSizeInMB} MB`);
       return;
     }
     setResume(file);
@@ -630,11 +616,11 @@ function Dashboard() {
         const isUpdate = currentUser?.id;
         const message = isUpdate
           ? `✅ Profile updated successfully, ${updatedUserData.fullName}!`
-          : `🎉 Welcome to AutoMailer, ${updatedUserData.fullName}!`;
+          : `🎉 Welcome to ${AppConfig.app.title}, ${updatedUserData.fullName}!`;
 
         toast.success(message, {
           position: "top-right",
-          autoClose: 5000,
+          autoClose: AppConfig.ui.toastAutoCloseTime,
         });
 
         // ✅ FORCE RE-RENDER
@@ -768,7 +754,7 @@ function Dashboard() {
         setSentCount(prev => prev + 1);
         toast.success(`✅ Resume sent by ${currentUser.fullName} to ${contact.hr_name} at ${contact.company_name}!`, {
           position: "top-right",
-          autoClose: 5000,
+          autoClose: AppConfig.ui.toastAutoCloseTime,
         });
       } else {
         toast.error(`❌ Failed to send email: ${response.message}`);
@@ -821,7 +807,7 @@ function Dashboard() {
           `🎉 Resume sent successfully by ${currentUser.fullName} to ${successCount} HRs!`,
           {
             position: "top-right",
-            autoClose: 6000,
+            autoClose: AppConfig.ui.longToastAutoCloseTime,
           }
         );
       } else {
@@ -856,8 +842,8 @@ function Dashboard() {
             <MdEmail />
           </div>
           <div className="brand-info">
-            <h1 className="app-title">AUTO MAILER</h1>
-            <p className="app-subtitle">Professional HR Email Automation</p>
+            <h1 className="app-title">{AppConfig.app.title}</h1>
+            <p className="app-subtitle">{AppConfig.app.subtitle}</p>
           </div>
         </div>
 
@@ -872,7 +858,7 @@ function Dashboard() {
                 <SafeAvatar
                   name={currentUser.fullName}
                   className="user-avatar"
-                  fallback="U"
+                  fallback={AppConfig.defaults.avatarFallback}
                 />
                 <div className="user-details">
                   <span className="user-name">{currentUser.fullName}</span>
@@ -887,7 +873,7 @@ function Dashboard() {
                   <div className="user-meta">
                     <small>{currentUser.email}</small>
                     <small>{currentUser.experienceYears} Experience</small>
-                    <small>{currentUser.currentRole || 'Software Developer'}</small>
+                    <small>{currentUser.currentRole || AppConfig.defaults.userRole}</small>
                   </div>
                 </Dropdown.Header>
 
@@ -999,12 +985,12 @@ function Dashboard() {
                               <div className="upload-content">
                                 <IoCloudUpload className="upload-icon" />
                                 <span className="upload-text">Click to upload your resume</span>
-                                <small className="upload-hint">PDF, DOC, DOCX (max 5 MB)</small>
+                                <small className="upload-hint">PDF, DOC, DOCX (max {AppConfig.fileUpload.maxSizeInMB} MB)</small>
                               </div>
                               <input
                                 type="file"
                                 id="user-resume-upload"
-                                accept=".pdf,.doc,.docx"
+                                accept={AppConfig.fileUpload.acceptedExtensions}
                                 hidden
                                 onChange={handleResumeUpload}
                               />
@@ -1137,19 +1123,11 @@ function Dashboard() {
                               onChange={handleUserInputChange}
                               required
                             >
-                              <option value="">Select experience level</option>
-                              <option value="Fresher">Fresher (0 years)</option>
-                              <option value="0.5+ years">0.5+ years</option>
-                              <option value="1+ years">1+ years</option>
-                              <option value="2+ years">2+ years</option>
-                              <option value="3+ years">3+ years</option>
-                              <option value="4+ years">4+ years</option>
-                              <option value="5+ years">5+ years</option>
-                              <option value="6+ years">6+ years</option>
-                              <option value="7+ years">7+ years</option>
-                              <option value="8+ years">8+ years</option>
-                              <option value="9+ years">9+ years</option>
-                              <option value="10+ years">10+ years</option>
+                              {AppConfig.experienceLevels.map(level => (
+                                <option key={level.value} value={level.value}>
+                                  {level.label}
+                                </option>
+                              ))}
                             </select>
                           </div>
                           <div className="input-wrapper">
@@ -1176,13 +1154,11 @@ function Dashboard() {
                               onChange={handleUserInputChange}
                               required
                             >
-                              <option value="">Select availability</option>
-                              <option value="Immediate joining">Immediate Joining</option>
-                              <option value="15 days notice">15 days notice</option>
-                              <option value="30 days notice">30 days notice</option>
-                              <option value="45 days notice">45 days notice</option>
-                              <option value="60 days notice">60 days notice</option>
-                              <option value="90 days notice">90 days notice</option>
+                              {AppConfig.availabilityOptions.map(option => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
                             </select>
                           </div>
                         </div>
@@ -1233,7 +1209,7 @@ function Dashboard() {
                             </div>
                             {isUserSkillsOpen && filteredUserSkills.length > 0 && (
                               <div className="skills-inline-options">
-                                {filteredUserSkills.slice(0, 10).map(skill => (
+                                {filteredUserSkills.slice(0, AppConfig.ui.skillsDropdownLimit).map(skill => (
                                   <button
                                     key={skill}
                                     type="button"
@@ -1289,11 +1265,11 @@ function Dashboard() {
                           <SafeAvatar
                             name={currentUser.fullName}
                             className="profile-avatar"
-                            fallback="P"
+                            fallback={AppConfig.defaults.profileAvatarFallback}
                           />
                           <div className="profile-info">
                             <h2>{currentUser.fullName}</h2>
-                            <p className="profile-role">{currentUser.currentRole || 'Software Developer'}</p>
+                            <p className="profile-role">{currentUser.currentRole || AppConfig.defaults.userRole}</p>
                             <p className="profile-experience">{currentUser.experienceYears} Experience</p>
                             <p className="profile-location">📍 {currentUser.location}</p>
                           </div>
@@ -1356,7 +1332,7 @@ function Dashboard() {
                 </div>
               </>
             ) : (
-              /* ===== HR FORM - Same as before but with enhanced validation ===== */
+              /* ===== HR FORM - Enhanced with config-based dropdowns ===== */
               <>
                 <div className="section-header">
                   <div className="header-icon">
@@ -1475,17 +1451,11 @@ function Dashboard() {
                             required
                             disabled={!currentUser}
                           >
-                            <option value="">Select job position</option>
-                            <option value="Software Engineer">Software Engineer</option>
-                            <option value="Full Stack Developer">Full Stack Developer</option>
-                            <option value="Frontend Developer">Frontend Developer</option>
-                            <option value="Backend Developer">Backend Developer</option>
-                            <option value="React Developer">React Developer</option>
-                            <option value="Node.js Developer">Node.js Developer</option>
-                            <option value="Python Developer">Python Developer</option>
-                            <option value="Java Developer">Java Developer</option>
-                            <option value="DevOps Engineer">DevOps Engineer</option>
-                            <option value="Data Scientist">Data Scientist</option>
+                            {AppConfig.jobPositions.map(position => (
+                              <option key={position.value} value={position.value}>
+                                {position.label}
+                              </option>
+                            ))}
                           </select>
                         </div>
 
@@ -1714,17 +1684,11 @@ function Dashboard() {
                                   onChange={handleEditInputChange}
                                   required
                                 >
-                                  <option value="">Select position</option>
-                                  <option value="Software Engineer">Software Engineer</option>
-                                  <option value="Full Stack Developer">Full Stack Developer</option>
-                                  <option value="Frontend Developer">Frontend Developer</option>
-                                  <option value="Backend Developer">Backend Developer</option>
-                                  <option value="React Developer">React Developer</option>
-                                  <option value="Node.js Developer">Node.js Developer</option>
-                                  <option value="Python Developer">Python Developer</option>
-                                  <option value="Java Developer">Java Developer</option>
-                                  <option value="DevOps Engineer">DevOps Engineer</option>
-                                  <option value="Data Scientist">Data Scientist</option>
+                                  {AppConfig.jobPositions.map(position => (
+                                    <option key={position.value} value={position.value}>
+                                      {position.label}
+                                    </option>
+                                  ))}
                                 </select>
                               </div>
                             </div>
@@ -1768,7 +1732,7 @@ function Dashboard() {
                                 </div>
                                 {isEditSkillsOpen && filteredEditSkills.length > 0 && (
                                   <div className="edit-skills-options">
-                                    {filteredEditSkills.slice(0, 6).map(skill => (
+                                    {filteredEditSkills.slice(0, AppConfig.ui.editSkillsDropdownLimit).map(skill => (
                                       <button
                                         key={skill}
                                         type="button"
@@ -1792,7 +1756,7 @@ function Dashboard() {
                             <SafeAvatar
                               name={contact.hr_name}
                               className="contact-avatar"
-                              fallback="H"
+                              fallback={AppConfig.defaults.contactAvatarFallback}
                             />
                             <div className="contact-details">
                               <h4>{contact.hr_name}</h4>
@@ -1979,17 +1943,11 @@ function Dashboard() {
                       onChange={handleCloneInputChange}
                       required
                     >
-                      <option value="">Select job position</option>
-                      <option value="Software Engineer">Software Engineer</option>
-                      <option value="Full Stack Developer">Full Stack Developer</option>
-                      <option value="Frontend Developer">Frontend Developer</option>
-                      <option value="Backend Developer">Backend Developer</option>
-                      <option value="React Developer">React Developer</option>
-                      <option value="Node.js Developer">Node.js Developer</option>
-                      <option value="Python Developer">Python Developer</option>
-                      <option value="Java Developer">Java Developer</option>
-                      <option value="DevOps Engineer">DevOps Engineer</option>
-                      <option value="Data Scientist">Data Scientist</option>
+                      {AppConfig.jobPositions.map(position => (
+                        <option key={position.value} value={position.value}>
+                          {position.label}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -2040,7 +1998,7 @@ function Dashboard() {
                     </div>
                     {isCloneSkillsOpen && filteredCloneSkills.length > 0 && (
                       <div className="clone-skills-options">
-                        {filteredCloneSkills.slice(0, 8).map(skill => (
+                        {filteredCloneSkills.slice(0, AppConfig.ui.cloneSkillsDropdownLimit).map(skill => (
                           <button
                             key={skill}
                             type="button"
@@ -2098,11 +2056,11 @@ function Dashboard() {
                 <SafeAvatar
                   name={currentUser.fullName}
                   className="user-details-avatar"
-                  fallback="U"
+                  fallback={AppConfig.defaults.avatarFallback}
                 />
                 <div className="user-details-info">
                   <h3>{currentUser.fullName}</h3>
-                  <p className="user-role">{currentUser.currentRole || 'Software Developer'}</p>
+                  <p className="user-role">{currentUser.currentRole || AppConfig.defaults.userRole}</p>
                   <p className="user-experience">{currentUser.experienceYears} Experience</p>
                   <p className="user-location">📍 {currentUser.location}</p>
                 </div>
@@ -2268,7 +2226,7 @@ function Dashboard() {
       {/* ----------  ✅ ENHANCED REACT-TOASTIFY CONTAINER  ---------- */}
       <ToastContainer
         position="top-right"
-        autoClose={5000}
+        autoClose={AppConfig.ui.toastAutoCloseTime}
         hideProgressBar={false}
         newestOnTop={true}
         closeOnClick
