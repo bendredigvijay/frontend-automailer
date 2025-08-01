@@ -1090,7 +1090,7 @@ function Dashboard() {
                       {/* ✅ ENHANCED Action Buttons */}
                       <div className="profile-form-actions">
                         <button
-                          className="primary-btn"
+                          className="btn btn-outline-primary"
                           disabled={isLoading || !userProfile.fullName?.trim()}
                           type="submit"
                         >
@@ -1107,7 +1107,7 @@ function Dashboard() {
                         {isEditingProfile && (
                           <button
                             type="button"
-                            className="cancel-btn"
+                            className="btn btn-outline-danger"
                             onClick={cancelProfileEdit}
                           >
                             <IoClose /> Cancel Changes
